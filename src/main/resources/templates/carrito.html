@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrito de Compras</title>
+    <link rel="icon" href="../corazon.ico" type="image/x-icon">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<header>
+    <nav class="navbar navbar-expand-lg bg-body-tertiary" style="background-color: #E6E6FA !important">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="../index.html">Tienda</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="listarClientes">Clientes</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="../productos/listarProductos">Productos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="carrito">Carrito</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<div class="container mt-5">
+    <h1>Carrito de Compras</h1>
+
+    <div class="mb-3">
+        <label for="cliente-select" class="form-label">Selecciona un Cliente</label>
+        <select id="cliente-select" class="form-select" aria-label="Selecciona un cliente">
+            <option selected disabled value="">-- Selecciona un cliente --</option>
+            <th:block th:each="cliente : ${clientes}">
+                <option th:value="${cliente.id}" th:text="${cliente.nombre} + ' ' + ${cliente.apellido}"></option>
+            </th:block>
+        </select>
+    </div>
+
+    <table class="table table-striped">
+        <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Valor Unitario (COP)</th>
+            <th>Cantidad</th>
+            <th>Precio Total (COP)</th>
+            <th>Descuento (COP)</th>
+            <th>Acciones</th>
+        </tr>
+        </thead>
+        <tbody id="carrito-body">
+        <!-- Aquí se agregarán los productos del carrito -->
+        </tbody>
+    </table>
+
+    <div class="mb-3">
+        <label for="codigo-descuento" class="form-label">Código de Descuento</label>
+        <input type="text" id="codigo-descuento" class="form-control" placeholder="Ingresa tu código de descuento">
+        <button class="btn btn-success mt-2" onclick="aplicarDescuento()">Aplicar Descuento</button>
+    </div>
+
+    <h4>Total del carrito: <span id="total-carrito">0</span> COP</h4>
+    <h5>Descuento aplicado: <span id="descuento-aplicado">0</span>%</h5>
+    <h5>Descuento total en pesos: <span id="descuento-total">0</span> COP</h5>
+</div>
+<div class="text-center mt-4">
+    <button class="btn btn-primary" onclick="realizarCompra()">Realizar Compra</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const carrito = JSON.parse(localStorage.getItem('carrito')) || [];
+    const carritoBody = document.getElementById('carrito-body');
+    const totalCarritoElement = document.getElementById('total-carrito');
+    const descuentoAplicadoElement = document.getElementById('descuento-aplicado');
+    const descuentoTotalElement = document.getElementById('descuento-total');
+
+    const descuentos = {
+        'DESCUENTO10': 10,
+        'DESCUENTO20': 20,
+        'OFERTA50': 50
+    };
+
+    let descuentoActual = 0;
+
+    function eliminarProducto(index) {
+        carrito.splice(index, 1);
+        localStorage.setItem('carrito', JSON.stringify(carrito));
+        renderCarrito();
+    }
+
+    function actualizarCantidad(index, nuevaCantidad) {
+        carrito[index].cantidad = parseInt(nuevaCantidad);
+        localStorage.setItem('carrito', JSON.stringify(carrito));
+        renderCarrito();
+    }
+
+    function calcularTotal() {
+        return carrito.reduce((total, producto) => {
+            return total + (producto.valorUnitario * producto.cantidad);
+        }, 0);
+    }
+
+    function renderCarrito() {
+        carritoBody.innerHTML = '';
+
+        if (carrito.length === 0) {
+            carritoBody.innerHTML = '<tr><td colspan="7" class="text-center">El carrito está vacío.</td></tr>';
+        } else {
+            carrito.forEach((producto, index) => {
+                const row = document.createElement('tr');
+
+                const valorUnitario = producto.valorUnitario.toLocaleString('es-CO', { minimumFractionDigits: 2 });
+                const precioTotal = (producto.valorUnitario * producto.cantidad).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+                const descuentoPorProducto = (producto.valorUnitario * producto.cantidad * (descuentoActual / 100)).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+
+                row.innerHTML = `
+                    <td>${producto.id}</td>
+                    <td>${producto.nombre}</td>
+                    <td>${valorUnitario} COP</td>
+                    <td>
+                        <input type="number" value="${producto.cantidad}" min="1" class="form-control" style="width: 80px;" onchange="actualizarCantidad(${index}, this.value)">
+                    </td>
+                    <td>${precioTotal} COP</td>
+                    <td>${descuentoPorProducto} COP</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="eliminarProducto(${index})">Eliminar</button>
+                    </td>
+                `;
+                carritoBody.appendChild(row);
+            });
+
+            const total = calcularTotal();
+            const totalConDescuento = total * (1 - descuentoActual / 100);
+            totalCarritoElement.textContent = totalConDescuento.toLocaleString('es-CO', { minimumFractionDigits: 2 });
+
+            const descuentoTotal = total * (descuentoActual / 100);
+            descuentoTotalElement.textContent = descuentoTotal.toLocaleString('es-CO', { minimumFractionDigits: 2 });
+        }
+    }
+
+    function aplicarDescuento() {
+        const codigo = document.getElementById('codigo-descuento').value.trim().toUpperCase();
+
+        if (descuentos[codigo]) {
+            descuentoActual = descuentos[codigo];
+            descuentoAplicadoElement.textContent = descuentoActual;
+            renderCarrito();
+        } else {
+            alert('Código de descuento no válido');
+        }
+    }
+
+    function realizarCompra() {
+    const clienteId = document.getElementById('cliente-select').value;
+
+    if (!clienteId) {
+        alert('Por favor, selecciona un cliente antes de realizar la compra.');
+        return;
+    }
+
+    // Crear encabezado
+    const encabezado = {
+        cliente: { id: clienteId },
+        subTotal: calcularTotal(),
+        descuentoTotal: calcularTotal() * (descuentoActual / 100),
+        total: calcularTotal() * (1 - descuentoActual / 100),
+        fecha: new Date().toISOString()
+    };
+
+    fetch('/encabezado/realizarCompra', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(encabezado),
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.text().then(text => {
+                alert('Error al realizar la compra: ' + text);
+                throw new Error('Error al realizar la compra');
+            });
+        }
+    })
+    .then(idEncabezado => {
+        const detalles = carrito.map(producto => {
+            const descuentoPorProducto = producto.valorUnitario * (descuentoActual / 100);
+            return {
+                encabezado: { id: idEncabezado },
+                producto: { id: producto.id },
+                cantidad: producto.cantidad,
+                valor: producto.valorUnitario,
+                descuento: descuentoPorProducto,
+                total: (producto.valorUnitario * producto.cantidad) - descuentoPorProducto
+            };
+        });
+
+
+        return fetch('/detalles/guardarDetalles', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(detalles),
+        });
+    })
+    .then(response => {
+        if (response.ok) {
+            alert('Compra realizada con éxito.');
+            localStorage.removeItem('carrito');
+            window.location.reload();
+        } else {
+            return response.text().then(text => {
+                alert('Error al guardar los detalles: ' + text);
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+    renderCarrito();
+</script>
+</body>
+</html>
